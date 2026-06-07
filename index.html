@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpaceFit AR - Mercer Mettl Hackathon</title>
+    
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #2563eb;
+            --dark: #1e293b;
+            --light: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        /* AR Viewer taking up full screen/remaining space */
+        .viewer-container {
+            flex: 1;
+            position: relative;
+            height: 100%;
+            background: #111;
+        }
+
+        /* Live Camera Background Stream */
+        #webcam-feed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            transform: scaleX(-1); /* Mirrors the camera for natural interaction */
+        }
+
+        /* Transparent background allows the live camera stream to show underneath */
+        model-viewer {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            --poster-color: transparent;
+            background-color: transparent; 
+        }
+
+        /* Sidebar UI */
+        .sidebar {
+            width: 380px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: -5px 0 25px rgba(0,0,0,0.15);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        .logo-area h2 {
+            color: var(--dark);
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .logo-area span {
+            color: var(--primary);
+        }
+
+        /* Furniture Selector */
+        .catalog-select {
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+            font-size: 16px;
+            color: var(--dark);
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .catalog-select:focus {
+            border-color: var(--primary);
+        }
+
+        /* Details Card */
+        .details-card {
+            background: var(--light);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .details-card h3 {
+            color: var(--dark);
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 5px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 12px;
+            font-size: 14px;
+        }
+
+        .label {
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .value {
+            color: var(--dark);
+            text-align: right;
+        }
+
+        /* Camera Error / Status Overlay */
+        .camera-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 5;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        /* Custom AR Button Overlay */
+        #ar-button {
+            background-color: var(--primary);
+            border-radius: 30px;
+            padding: 12px 24px;
+            color: white;
+            border: none;
+            font-weight: 600;
+            font-size: 16px;
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #ar-button:active {
+            background-color: #1d4ed8;
+        }
+
+        /* Responsive design for Mobile Users */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column-reverse;
+            }
+            .sidebar {
+                width: 100%;
+                height: 45%;
+                padding: 20px;
+            }
+            .viewer-container {
+                height: 55%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="logo-area">
+            <h2>SpaceFit <span>AR</span></h2>
+            <p style="color: #64748b; font-size: 12px;">Hackathon WebAR Prototype</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-weight: 600; color: var(--dark);">Select Furniture:</label>
+            <select id="furniture-selector" class="catalog-select">
+                <option value="chair">Modern Accent Chair</option>
+                <option value="table">Minimalist Coffee Table</option>
+                <option value="sofa">Nordic 3-Seater Sofa</option>
+            </select>
+        </div>
+
+        <div class="details-card">
+            <h3 id="item-name">Modern Accent Chair</h3>
+            <div class="info-grid">
+                <span class="label">Brand:</span>
+                <span class="value" id="item-brand">LuxeComfort</span>
+
+                <span class="label">Dimensions:</span>
+                <span class="value" id="item-size">85cm x 80cm x 90cm</span>
+
+                <span class="label">Primary Color:</span>
+                <span class="value" id="item-color">Teal Blue</span>
+
+                <span class="label">Texture/Material:</span>
+                <span class="value" id="item-texture">Premium Velvet Fabric</span>
+                
+                <span class="label">Fit Guarantee:</span>
+                <span class="value" style="color: #16a34a; font-weight: bold;">True-to-Scale AR</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="viewer-container">
+        <video id="webcam-feed" autoplay playsinline></video>
+        
+        <div class="camera-status" id="camera-status-text">Initializing Camera Feed...</div>
+
+        <model-viewer 
+            id="dimension-demo" 
+            src="https://modelviewer.dev/shared-assets/models/Chair.glb" 
+            ar 
+            ar-modes="webxr scene-viewer quick-look" 
+            camera-controls 
+            shadow-intensity="1"
+            alt="A 3D model of furniture">
+            
+            <button slot="ar-button" id="ar-button">
+                👋 Place in Your Room (True AR)
+            </button>
+        </model-viewer>
+    </div>
+
+    <script>
+        // Mock Database for Hackathon Prototype Data
+        const furnitureData = {
+            chair: {
+                name: "Modern Accent Chair",
+                brand: "LuxeComfort",
+                size: "85cm x 80cm x 90cm",
+                color: "Teal Blue",
+                texture: "Premium Velvet Fabric",
+                modelUrl: "https://modelviewer.dev/shared-assets/models/Chair.glb"
+            },
+            table: {
+                name: "Minimalist Coffee Table",
+                brand: "Oak&Iron Co.",
+                size: "120cm x 60cm x 45cm",
+                color: "Natural Oak / Black",
+                texture: "Solid Oak, Powder-Coated Matte Steel",
+                modelUrl: "https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/CoffeeTable/glTF-Binary/CoffeeTable.glb"
+            },
+            sofa: {
+                name: "Nordic 3-Seater Sofa",
+                brand: "UrbanLiving",
+                size: "210cm x 95cm x 85cm",
+                color: "Charcoal Grey",
+                texture: "Breathable Linen Blend",
+                modelUrl: "https://modelviewer.dev/shared-assets/models/Solitaire.glb"
+            }
+        };
+
+        const selector = document.getElementById('furniture-selector');
+        const modelViewer = document.getElementById('dimension-demo');
+        const videoElement = document.getElementById('webcam-feed');
+        const cameraStatus = document.getElementById('camera-status-text');
+
+        // Dynamic UI updating logic
+        selector.addEventListener('change', (e) => {
+            const selectedItem = furnitureData[e.target.value];
+            
+            if (selectedItem) {
+                // Update text details in the sidebar
+                document.getElementById('item-name').innerText = selectedItem.name;
+                document.getElementById('item-brand').innerText = selectedItem.brand;
+                document.getElementById('item-size').innerText = selectedItem.size;
+                document.getElementById('item-color').innerText = selectedItem.color;
+                document.getElementById('item-texture').innerText = selectedItem.texture;
+
+                // Dynamically update the 3D model source for the AR Engine
+                modelViewer.src = selectedItem.modelUrl;
+            }
+        });
+
+        // Initialize Live Webcam Feature for Virtual Room Placement Simulation
+        async function initWebcam() {
+            try {
+                // Requests environmental/back camera on mobile devices, defaults to webcam on desktop
+                const constraints = {
+                    video: { facingMode: "environment" },
+                    audio: false
+                };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = stream;
+                cameraStatus.innerText = "📷 Interactive Live AR View Mode Active";
+            } catch (error) {
+                console.error("Camera access denied or unavailable:", error);
+                cameraStatus.style.background = "rgba(220, 38, 38, 0.8)";
+                cameraStatus.innerText = "⚠️ Webcam blocked. Showing 3D View Only (Allow camera for full experience)";
+            }
+        }
+
+        // Run camera initialization on load
+        window.addEventListener('DOMContentLoaded', initWebcam);
+    </script>
+</body>
+</html>
